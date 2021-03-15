@@ -2,6 +2,7 @@ import datetime
 import requests
 from dataclasses import dataclass
 from typing import Optional, List
+from pathlib import Path
 
 """
 Задача:
@@ -64,7 +65,6 @@ class RobotsTxtAnalyser:
     Сигнатуру существующих методов менять не стоит, но можно добавить новые, если это необходимо
     """
     registry: List["Stats"] = []
-    stats: Stats = None
 
     def __init__(self, filename: str):
         self.filename = filename
@@ -92,20 +92,21 @@ class RobotsTxtAnalyser:
 
          - content - содержимое robots.txt (пример можно посмотреть https://google.com/robots.txt)
         """
+        stats = Stats()
 
         response = requests.head(f"https://{resource}/robots.txt")
-        if response.headers.get("Last-Modified", False):
-            self.stats.last_modified = response.headers.get("Last-Modified")
-            self.stats.last_modified = datetime.datetime.strptime(f"{self.stats.last_modified}",
+        if response.headers.get("Last-Modified"):
+            stats.last_modified = response.headers.get("Last-Modified")
+            stats.last_modified = datetime.datetime.strptime(f"{stats.last_modified}",
                                                                   "%a, %d %b %Y %H:%M:%S %Z").timestamp()
 
         for line in content.split("\n"):
             if line.startswith("Allow"):
-                self.stats.allow += 1
+                stats.allow += 1
             elif line.startswith("Disallow"):
-                self.stats.disallow += 1
+                stats.disallow += 1
 
-        return self.stats
+        return stats
 
     def analyze(self, resource: str):
         """
@@ -116,21 +117,26 @@ class RobotsTxtAnalyser:
         """
 
     @staticmethod
-    def load():
+    def load(filename):
         """
         Загрузить предыдущие данные анализа ресурсов из файла
         """
-        with open(filename) as f:
-            data = []
-            for line in f:
-                data.append(f.readline())
+        robots_analyze_file = Path(f"{filename}.txt")
+        if not robots_analyze_file.exists():
+            robots_analyze_file.touch()
+        else:
+            with robots_analyze_file.open() as f:
+                data = []
+                for line in f:
+                    data.append(line)
         return data
 
+    @staticmethod
     def save(self):
         """
         Сохранить обновленные данные анализа ресурсов в файл
         """
-        with open(filename, "a") as f:
+        with open(filename, "w") as f:
             f.write(self.stats)
 
     def __enter__(self) -> "RobotsTxtAnalyser":
@@ -147,7 +153,7 @@ if __name__ == "__main__":
     analyzer = RobotsTxtAnalyser(filename)
 
     print(analyzer.collect_stats(analyzer.fetch(resource)))
-    print(analyzer.load())
+    print(analyzer.load(filename))
 
     analyzer.analyze(resource)
     analyzer.save()
